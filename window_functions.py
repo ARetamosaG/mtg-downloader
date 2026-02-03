@@ -101,3 +101,74 @@ def create_progress_window(root):
     text_area.pack(pady=10, padx=10)
     
     return window, label, text_area
+
+#
+# Helper function to decide on double-faced cards:
+#
+def ask_dfc_option(root):
+
+    # Set 'cancel' as a special value to detect whether the window is closed:
+    choice = tk.StringVar(value="cancel")
+    
+    # Create a modal window:
+    dialog = tk.Toplevel(root)
+    dialog.title("Se han detectado cartas de doble cara")
+    dialog.geometry("400x250")
+
+    # Make it so the user can't click outside of the window:
+    dialog.grab_set()
+
+    # Whenever the option is confirmed:
+    def confirm():
+
+        # Set 'both' as the default option when confirming:
+        if choice.get() == "cancel":
+            choice.set("both")
+
+        # Destroy this window:
+        dialog.destroy()
+
+    # If the user closes the window:
+    def on_x():
+
+        # Keep setting the value to 'cancel':
+        choice.set("cancel")
+
+        # Destroy the window:
+        dialog.destroy()
+
+    # Set the window protocol:
+    dialog.protocol("WM_DELETE_WINDOW", on_x)
+    
+    # Add a label:
+    tk.Label(dialog, text="Se han detectado cartas de doble cara.\n¿Qué caras quieres descargar?", 
+             font=("Helvetica", 12, "bold"), pady=15).pack()
+    
+    # Set 'both' as the default selected option:
+    choice.set("both")
+
+    # Create an options set:
+    options = [
+        ("Solo cara delantera (Front)", "front"),
+        ("Solo cara trasera (Back)", "back"),
+        ("Ambas caras (Both)", "both")
+    ]
+    
+    # Create a button for each available option:
+    for text, val in options:
+        tk.Radiobutton(dialog, text=text, variable=choice, value=val, font=("Helvetica", 11)).pack(anchor=tk.W, padx=50)
+    
+    # Add a confirm button:
+    tk.Button(dialog, text="Confirmar y Empezar", command=confirm, font=("Helvetica", 12, "bold"), bg="#e1e1e1").pack(pady=20)
+    
+    # Wait until the window is closed:
+    dialog.wait_window()
+
+    # If there was a selected option:
+    if choice.get() != "cancel":
+
+        # Return it:
+        return choice.get() 
+    
+    # If the value is 'cancel', return None:
+    return None 

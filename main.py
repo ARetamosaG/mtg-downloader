@@ -1,6 +1,6 @@
-#########################################################
-# THIS FILE CONTAINS DIFFERENT FUNCTIONS FOR THE SYSTEM #
-#########################################################
+###########################
+# MAIN MENU FUNCTION CALL #
+###########################
 
 # Import helper functions:
 from file_select import file_select
@@ -31,6 +31,12 @@ def main_menu():
     # Add a label to the frame:
     tk.Label(frame, text="Descargador de imágenes de decklists", font=("Helvetica", 24, "bold")).pack(pady=10)
     tk.Label(frame, text="by AdryRG", font=("Helvetica", 14, "bold")).pack(pady=10)
+
+    # Add version history labels:
+    tk.Label(frame, text="Historial de versiones:", font=("Helvetica", 10, "bold")).pack(pady=1)
+    tk.Label(frame, text="V1.0: Lanzamiento inicial", font=("Helvetica", 10, "bold")).pack(pady=1)
+    tk.Label(frame, text="V1.1: Manejo de cartas de doble cara", font=("Helvetica", 10, "bold")).pack(pady=1)
+    tk.Label(frame, text="Última actualización: 3 febrero 2026", font=("Helvetica", 10, "bold")).pack(pady=1)
 
     # Add the following buttons:
     tk.Button(frame, text="Seleccionar decklist (.txt)", command=lambda:file_select(root),

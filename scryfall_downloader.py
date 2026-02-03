@@ -22,9 +22,6 @@ class ScryfallDownloader:
         # Store the output folder path:
         self.output_folder = Path(output_folder)
 
-        # Create the directory and its parents if they do not exist:
-        self.output_folder.mkdir(parents=True, exist_ok=True)
-
         # Store the callback function to update the GUI:
         self.log_callback = log_callback 
 
@@ -85,260 +82,269 @@ class ScryfallDownloader:
             quantity = int(match.group(1))
 
             # Extract the card name from the second group:
-            card_name = match.group(2).strip()
+            name = match.group(2)
 
             # Extract the set code from the third group:
-            set_code = match.group(3).upper()
+            set = match.group(3).lower()
 
             # Extract the collector number from the fourth group:
-            collector_number = match.group(4)
+            collector_number = match.group(4).lower()
             
             # Return a dictionary with the extracted data:
             return {
                 'quantity': quantity,
-                'name': card_name,
-                'set': set_code,
+                'name': name,
+                'set': set,
                 'collector_number': collector_number
             }
         
         # If the line format is incorrect:
         else:
 
-            # Log the error message:
+            # Log the error message if the line format:
             self.log(f"No se pudo parsear: {line}")
 
             # End the function:
             return None
-    
-    #
-    # Function to fetch card data from Scryfall:
-    #
-    def get_card_from_scryfall(self, set_code, collector_number):
-
-        # Construct the API URL using set and collector number:
-        url = f"{self.BASE_URL}/cards/{set_code.lower()}/{collector_number}"
         
+    #
+    # Helper function to check whether the decklist has DFCs:
+    #
+    def check_for_dfcs(self, file_path):
+
         # Attempt the web request:
         try:
+            
+            # Open the file:
+            with open(file_path, 'r', encoding='utf-8') as f:
 
-            # Send a GET request with a 10 second timeout:
-            response = requests.get(url, timeout=10)
+                # Read the lines:
+                lines = f.readlines()
+            
+            # Initialise a list to store identifiers:
+            identifiers = []
 
-            # Raise an exception if the status code is not 200:
-            response.raise_for_status()
+            # Iterate through each line:
+            for line in lines:
 
-            # Return the JSON response from the API:
-            return response.json()
+                # Extract the card info:
+                info = self.parse_moxfield_line(line)
+
+                # If the line is valid:
+                if info:
+
+                    # Add the set and collector number to the list:
+                    identifiers.append({"set": info['set'], "collector_number": info['collector_number']})
+            
+            # Consult the Scryfall API in batches:
+            for i in range(0, len(identifiers), 75):
+
+                # Slice the list to get the current batch:
+                batch = identifiers[i:i+75]
+
+                # Make the POST request:
+                resp = requests.post(f"{self.BASE_URL}/cards/collection", json={"identifiers": batch})
+
+                # If the response is successful:
+                if resp.status_code == 200:
+
+                    # Extract the cards data:
+                    cards = resp.json().get('data', [])
+
+                    # For each card:
+                    for card in cards:
+
+                        # If a card has faces but no main image URI, it is a DFC:
+                        if 'card_faces' in card and 'image_uris' not in card:
+
+                            # Return True the first time a DFC is found:
+                            return True
+                        
+            # If no DFCs were found, return False:
+            return False
         
-        # Catch any request-related errors:
-        except requests.exceptions.RequestException as e:
+        # If any error occurs during the process:
+        except Exception:
 
-            # Log the error including the set and number:
-            self.log(f"Error al obtener carta {set_code} {collector_number}: {e}")
-
-            # End the function:
-            return None
-
-    #
-    # Method to clean file names:
-    #
-    def clean_filename(self, filename):
-
-        # Define a string with all forbidden characters in Windows/Linux:
-        invalid_chars = '<>:"/\\|?*'
-
-        # Iterate through each invalid character:
-        for char in invalid_chars:
-
-            # Replace the forbidden character with an underscore:
-            filename = filename.replace(char, '_')
-
-        # Return the clean filename:
-        return filename
+            # Return False to proceed with default behaviour:
+            return False
     
     #
     # Image file download method:
     #
-    def download_image(self, card_data, copy_number=1):
+    def download_image(self, card_data, dfc_policy="both"):
 
-        # If the card data is not valid:
-        if not card_data:
+        # Clean the name for filenames (replace / or // with _):
+        card_name = card_data.get('name', 'Unknown').replace(" // ", "_").replace("/", "_")
 
-            # End the function:
-            return False
+        # Get the set code from the data:
+        set_code = card_data.get('set', 'Unknown')
+
+        # Get the collector number from the data:
+        collector_num = card_data.get('collector_number', 'Unknown')
         
-        # Try to get the image URIs dictionary:
-        image_uris = card_data.get('image_uris')
+        # Initialise the list of URLs to process:
+        urls_to_download = []
+
+        # Check for a DFC (has faces but no main image):
+        if 'card_faces' in card_data and 'image_uris' not in card_data:
+
+            # Store the faces data:
+            faces = card_data['card_faces']
+
+            # If 'front' was chosen as the selected policy:
+            if dfc_policy in ["front", "both"]:
+
+                # Add the front face URL:
+                urls_to_download.append((faces[0]['image_uris']['png'], "front"))
+
+            # If 'back' was chosen as the selected policy:
+            if dfc_policy in ["back", "both"]:
+
+                # Perform a security check:
+                if 'image_uris' in faces[1]:
+
+                    # Add the back face URL:
+                    urls_to_download.append((faces[1]['image_uris']['png'], "back"))
         
-        # Check if it is a double-faced card without main URIs:
-        if not image_uris and 'card_faces' in card_data:
-
-            # Use the image URIs from the first face:
-            image_uris = card_data['card_faces'][0].get('image_uris')
-        
-        # Verify if a PNG version of the image exists:
-        if not image_uris or 'png' not in image_uris:
-
-            # Log that the PNG format was not found:
-            self.log(f"No hay imagen PNG disponible para {card_data.get('name')}")
-
-            # End the function:
-            return False
-        
-        # Extract the specific PNG URL:
-        png_url = image_uris['png']
-        
-        # Clean the card name for the filename:
-        card_name = self.clean_filename(card_data['name'])
-
-        # Get the set code in uppercase:
-        set_code = card_data['set'].upper()
-
-        # Get the collector number:
-        collector_num = card_data['collector_number']
-        
-        # Format the final filename including copy number:
-        filename = f"{card_name}_{set_code}_{collector_num}_{copy_number}.png"
-
-        # Combine the output folder with the filename:
-        filepath = self.output_folder / filename
-        
-        # Attempt to download and save the file:
-        try:
-
-            # Log the start of the download:
-            self.log(f"Descargando: {filename}")
-
-            # Request the image content with a 30 second timeout:
-            img_response = requests.get(png_url, timeout=30)
-
-            # Check for request errors:
-            img_response.raise_for_status()
+        # If it is a single-faced card:
+        else:
             
-            # Open the file path in write-binary mode:
-            with open(filepath, 'wb') as f:
+            # Add the main URL with no suffix:
+            urls_to_download.append((card_data['image_uris']['png'], ""))
 
-                # Write the image content to the file:
-                f.write(img_response.content)
+        # Initialise the success flag:
+        success = True
+
+        # Iterate through each URL to download:
+        for url, suffix in urls_to_download:
+
+            # Format the suffix string if it exists:
+            suffix_str = f"_{suffix}" if suffix else ""
+
+            # Construct the final filename:
+            filename = f"{card_name}{suffix_str}_{set_code}_{collector_num}.png"
+
+            # Construct the full filepath:
+            filepath = self.output_folder / filename
             
-            # Log the successful save:
-            self.log(f"Guardada: {filename}")
+            # Start the download attempt:
+            try:
 
-            # End the function:
-            return True
-            
-        # Catch any download errors:
-        except requests.exceptions.RequestException as e:
+                # Log the current download progress:
+                self.log(f"Descargando: {filename}")
 
-            # Log the specific error:
-            self.log(f"Error al descargar imagen: {e}")
+                # Make the GET request:
+                res = requests.get(url, timeout=30)
 
-            # End the function:
-            return False
+                # Raise an error for bad responses:
+                res.raise_for_status()
+
+                # Open the file in BINARY WRITE MODE:
+                with open(filepath, 'wb') as f:
+
+                    # Write the image content:
+                    f.write(res.content)
+
+                # Wait for the API delay to avoid rate limiting:
+                time.sleep(self.DELAY)
+
+            # If a download fails:
+            except Exception as e:
+
+                # Log the error message:
+                self.log(f"Error en {filename}: {e}")
+
+                # Set the success flag to False:
+                success = False
+
+        # Return the final success status:
+        return success
     
     #
     # Main process for the decklist:
     #
-    def process_decklist(self, decklist_file):
+    def process_decklist(self, file_path, dfc_policy="both"):
 
-        # Record the current time as start time:
+        # Create the output folder when the process starts:
+        self.output_folder.mkdir(parents=True, exist_ok=True)
+
+        # Set the start time:
         self.start_time = time.time()
         
-        # Log the beginning of the process:
-        self.log(f"\nIniciando descarga de proxies desde: {decklist_file}")
-
-        # Log the absolute path of the output folder:
-
-        self.log(f"Las imágenes se guardarán en: {self.output_folder.absolute()}\n")
-        
-        # Attempt to read the input file:
+        # Start the file processing block:
         try:
 
-            # Open the text file with UTF-8 encoding:
-            with open(decklist_file, 'r', encoding='utf-8') as f:
+            # Open the decklist file:
+            with open(file_path, 'r', encoding='utf-8') as f:
 
-                # Read all lines into a list:
+                # Read all lines:
                 lines = f.readlines()
 
-        # Catch the error if the file is missing:
-        except FileNotFoundError:
+            # Process each line:
+            for line in lines:
 
-            # Log the missing file error:
-            self.log(f"No se encontró el archivo: {decklist_file}")
+                # Extract the card info:
+                card_info = self.parse_moxfield_line(line)
 
-            # Abort the process:
-            return
-        
-        # Initialise a list for valid card data:
-        cards_to_download = []
+                # If the line is invalid or empty:
+                if not card_info:
 
-        # Iterate through each line of the file:
-        for line in lines:
+                    # Skip it:
+                    continue
 
-            # Parse the line content:
-            parsed = self.parse_moxfield_line(line)
+                # Increment the total card counter:
+                self.stats['total'] += 1
 
-            # If the line is valid:
-            if parsed:
+                # Construct the Scryfall API URL for the card:
+                api_url = f"{self.BASE_URL}/cards/{card_info['set']}/{card_info['collector_number']}"
+                
+                # Request individual card data:
+                try:
 
-                # Add the dictionary to our list:
-                cards_to_download.append(parsed)
+                    # GET request to the Scryfall API:
+                    response = requests.get(api_url, timeout=30)
 
-                # Update the total count of cards:
-                self.stats['total'] += parsed['quantity']
-        
-        # Log the total amount of cards found:
-        self.log(f"Total de cartas a descargar: {self.stats['total']}\n")
-        
-        # Iterate through the list of cards to download:
-        for card_info in cards_to_download:
+                    # Ensure the response is successful:
+                    response.raise_for_status()
 
-            # Log the search of the current card:
-            self.log(f"\nBuscando: {card_info['name']} ({card_info['set']}) #{card_info['collector_number']}")
-            
-            # Fetch data from Scryfall API:
-            card_data = self.get_card_from_scryfall(
-                card_info['set'], 
-                card_info['collector_number']
-            )
-            
-            # If API data was successfully retrieved:
-            if card_data:
+                    # Parse the JSON data:
+                    card_data = response.json()
+                    
+                    # Call the download method:
+                    if self.download_image(card_data, dfc_policy):
 
-                # Loop through the required quantity of copies:
-                for copy in range(1, card_info['quantity'] + 1):
-
-                    # Attempt to download the image:
-                    if self.download_image(card_data, copy):
-
-                        # Increment successful counter:
+                        # Increment the successful counter:
                         self.stats['successful'] += 1
 
-                    # If download fails:
+                    # If the download fails:
                     else:
 
-                        # Increment failed counter:
+                        # Increment the failed counter:
                         self.stats['failed'] += 1
-                    
-                    # If it is not the last copy or the last card:
-                    if copy < card_info['quantity'] or card_info != cards_to_download[-1]:
                         
-                        # Wait to respect the API rate limit:
-                        time.sleep(self.DELAY)
+                # Catch any API exceptions:
+                except Exception as e:
 
-            # If API data could not be retrieved:
-            else:
+                    # Log the API error:
+                    self.log(f"Error API ({card_info['name']}): {e}")
 
-                # Mark all requested copies as failed:
-                self.stats['failed'] += card_info['quantity']
-            
-            # Wait briefly between different cards:
-            time.sleep(self.DELAY)
+                    # Increment the failed counter:
+                    self.stats['failed'] += 1
+                
+                # Sleep between cards to respect the API limits:
+                time.sleep(self.DELAY)
+
+        # Catch any general file processing errors:
+        except Exception as e:
+
+            # Log the error:
+            self.log(f"Error procesando archivo: {e}")
         
-        # Record the current time as end time:
+        # Set the end time:
         self.end_time = time.time()
         
-        # Trigger the final summary:
+        # Display the summary:
         self.print_summary()
     
     # Define the method to display the final summary:

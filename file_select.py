@@ -4,7 +4,7 @@
 
 # Import the other files and functions:
 from scryfall_downloader import ScryfallDownloader
-from window_functions import error_window, info_window, create_progress_window
+from window_functions import error_window, info_window, create_progress_window, ask_dfc_option
 
 # Import the GUI libraries:
 import tkinter as tk
@@ -34,10 +34,6 @@ def file_select(root):
         # End the function:
         return
 
-    #
-    # SECURITY CHECK #1: check the file extension
-    #
-
     # If the selected file is not a text file:
     if not file_path.lower().endswith('.txt'):
 
@@ -46,51 +42,28 @@ def file_select(root):
 
         # End the function:
         return
-    
-    #
-    # SECURITY CHECK #2: check the file content
-    #
 
     # Create a temporary instance to validate:
-    validator = ScryfallDownloader()
+    checker = ScryfallDownloader()
 
-    # Valid flag:
-    is_valid = False
+    # Check for double-faced cards:
+    has_dfcs = checker.check_for_dfcs(file_path)
     
-    try:
+    # Set the default value to 'front':
+    policy = "front"
 
-        # Open the file:
-        with open(file_path, 'r', encoding='utf-8') as file:
+    # If there are DFCs:
+    if has_dfcs:
 
-            # Check each line:
-            for line in file:
+        # Ask for a DFC policy:
+        policy = ask_dfc_option(root)
+        
+        # If the user closed the window (policy is None):
+        if policy is None:
 
-                # If the line is valid:
-                if validator.parse_moxfield_line(line):
-
-                    # Check the boolean variable as true:
-                    is_valid = True
-
-                    # End the loop since we only need one valid line:
-                    break
-
-    # If there was an error:
-    except Exception as e:
-
-        # Show an error window:
-        error_window(root, f"No se pudo leer el archivo: {e}")
-
-        # End the function:
-        return
-
-    # If the file is not valid:
-    if not is_valid:
-
-        # Show an error window:
-        error_window(root, "El archivo no parece tener un formato Moxfield válido.\nEjemplo: 1 Arid Mesa (MH2) 244")
-
-        # End the function:
-        return
+            # Bring back the previous window:
+            root.deiconify()
+            return
 
     # Hide the main window:
     root.withdraw()
@@ -140,10 +113,11 @@ def file_select(root):
         )
 
         # Process the decklist file:
-        downloader.process_decklist(file_path)
+        downloader.process_decklist(file_path, dfc_policy=policy)
         
         # Close the progress window when finished:
-        window_progress.destroy()
+        if window_progress.winfo_exists():
+            window_progress.destroy()
 
         # Show a success information window:
         info_window(root, "¡Descarga completada con éxito!")

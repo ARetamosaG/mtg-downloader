@@ -46,3 +46,12 @@ An executable file is included in the repository, but you can generate your own 
 ```
 
 The `pyinstaller` library is required to generate the .exe file.
+
+## Version History
+
+* **v1.0**
+    * Initial release with Scryfall API integration and basic GUI.
+* **v1.1**
+    * Added support for double-faced cards (DFCs).
+    * New selection window to choose between front, back, or both faces.
+    * Added version history to the main menu for better tracking.
