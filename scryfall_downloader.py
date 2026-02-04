@@ -172,7 +172,7 @@ class ScryfallDownloader:
     #
     # Image file download method:
     #
-    def download_image(self, card_data, dfc_policy="both"):
+    def download_image(self, card_data, dfc_policy="both", copy_number=None, copy_suffix=""):
 
         # Clean the name for filenames (replace / or // with _):
         card_name = card_data.get('name', 'Unknown').replace(" // ", "_").replace("/", "_")
@@ -206,24 +206,27 @@ class ScryfallDownloader:
 
                     # Add the back face URL:
                     urls_to_download.append((faces[1]['image_uris']['png'], "back"))
-        
+
         # If it is a single-faced card:
         else:
-            
+
             # Add the main URL with no suffix:
             urls_to_download.append((card_data['image_uris']['png'], ""))
 
         # Initialise the success flag:
         success = True
 
+        # Copy number suffix:
+        copy_suffix = f"_{copy_number}" if copy_number else ""
+
         # Iterate through each URL to download:
-        for url, suffix in urls_to_download:
+        for url, face_suffix in urls_to_download:
 
             # Format the suffix string if it exists:
-            suffix_str = f"_{suffix}" if suffix else ""
-
+            face_str = f"_{face_suffix}" if face_suffix else ""
+            
             # Construct the final filename:
-            filename = f"{card_name}{suffix_str}_{set_code}_{collector_num}.png"
+            filename = f"{card_name}{face_str}{copy_suffix}_{set_code}_{collector_num}.png"
 
             # Construct the full filepath:
             filepath = self.output_folder / filename
@@ -262,7 +265,7 @@ class ScryfallDownloader:
         return success
     
     #
-    # Main process for the decklist:
+    # Main function to process the decklist:
     #
     def process_decklist(self, file_path, dfc_policy="both"):
 
@@ -293,8 +296,8 @@ class ScryfallDownloader:
                     # Skip it:
                     continue
 
-                # Increment the total card counter:
-                self.stats['total'] += 1
+                # Save the number of copies to download:
+                quantity = card_info.get('quantity', 1)
 
                 # Construct the Scryfall API URL for the card:
                 api_url = f"{self.BASE_URL}/cards/{card_info['set']}/{card_info['collector_number']}"
@@ -311,17 +314,26 @@ class ScryfallDownloader:
                     # Parse the JSON data:
                     card_data = response.json()
                     
-                    # Call the download method:
-                    if self.download_image(card_data, dfc_policy):
+                    # Download each copy:
+                    for i in range(1, quantity + 1):
 
-                        # Increment the successful counter:
-                        self.stats['successful'] += 1
+                        # Increment the total card counter:
+                        self.stats['total'] += 1
 
-                    # If the download fails:
-                    else:
+                        # Add a suffix to avoid overwriting if multiple copies:
+                        copy_suffix = f"{i}" if quantity > 1 else ""
+                        
+                        # Call 'download_image' with the suffix:
+                        if self.download_image(card_data, dfc_policy, copy_suffix):
 
-                        # Increment the failed counter:
-                        self.stats['failed'] += 1
+                            # Increment the successful counter:
+                            self.stats['successful'] += 1
+
+                        # If the download failed:
+                        else:
+
+                            # Increment the failed counter:
+                            self.stats['failed'] += 1
                         
                 # Catch any API exceptions:
                 except Exception as e:
