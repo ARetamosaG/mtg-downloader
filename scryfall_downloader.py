@@ -82,13 +82,13 @@ class ScryfallDownloader:
             quantity = int(match.group(1))
 
             # Extract the card name from the second group:
-            name = match.group(2)
+            name = match.group(2).strip()
 
             # Extract the set code from the third group:
-            set = match.group(3).lower()
+            set = match.group(3).upper()
 
             # Extract the collector number from the fourth group:
-            collector_number = match.group(4).lower()
+            collector_number = match.group(4)
             
             # Return a dictionary with the extracted data:
             return {

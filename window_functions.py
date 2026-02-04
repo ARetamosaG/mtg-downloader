@@ -159,7 +159,7 @@ def ask_dfc_option(root):
         tk.Radiobutton(dialog, text=text, variable=choice, value=val, font=("Helvetica", 11)).pack(anchor=tk.W, padx=50)
     
     # Add a confirm button:
-    tk.Button(dialog, text="Confirmar y Empezar", command=confirm, font=("Helvetica", 12, "bold"), bg="#e1e1e1").pack(pady=20)
+    tk.Button(dialog, text="Confirmar y empezar", command=confirm, font=("Helvetica", 12)).pack(pady=20)
     
     # Wait until the window is closed:
     dialog.wait_window()
