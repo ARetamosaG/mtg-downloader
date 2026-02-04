@@ -55,3 +55,6 @@ The `pyinstaller` library is required to generate the .exe file.
     * Added support for double-faced cards (DFCs).
     * New selection window to choose between front, back, or both faces.
     * Added version history to the main menu for better tracking.
+* **V1.1.1 (Hotfix)**
+    - Upgraded data extraction logic from the .txt file.
+    - Added multiple copy download. If the list has "4x Lightning Bolt", the program downloads the image once but will save 4 numbered files (e.g.: `Lightning Bolt (1).png`, `Lightning Bolt (2).png`, ...).

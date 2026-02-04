@@ -36,7 +36,8 @@ def main_menu():
     tk.Label(frame, text="Historial de versiones:", font=("Helvetica", 10, "bold")).pack(pady=1)
     tk.Label(frame, text="V1.0: Lanzamiento inicial", font=("Helvetica", 10, "bold")).pack(pady=1)
     tk.Label(frame, text="V1.1: Manejo de cartas de doble cara", font=("Helvetica", 10, "bold")).pack(pady=1)
-    tk.Label(frame, text="Última actualización: 3 febrero 2026", font=("Helvetica", 10, "bold")).pack(pady=1)
+    tk.Label(frame, text="V1.1.1: Arreglo de errores - Descarga de múltiples copias", font=("Helvetica", 10, "bold")).pack(pady=1)
+    tk.Label(frame, text="Última actualización: 4 febrero 2026", font=("Helvetica", 10, "bold")).pack(pady=5)
 
     # Add the following buttons:
     tk.Button(frame, text="Seleccionar decklist (.txt)", command=lambda:file_select(root),
